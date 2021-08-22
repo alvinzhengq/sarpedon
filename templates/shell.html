@@ -1,0 +1,83 @@
+<html>
+
+<head>
+  <script src="/assets/node_modules/xterm/lib/xterm.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <link rel="stylesheet" href="/assets/node_modules/xterm/css/xterm.css" crossorigin="anonymous"
+    referrerpolicy="no-referrer" />
+  <script src="/assets/node_modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xterm-addon-attach@0.3.0/lib/xterm-addon-attach.js"></script>
+</head>
+
+<style>
+</style>
+
+<body>
+  <div id="term" style="width: 70vw; height: 70vh"></div>
+</body>
+
+<script>
+  const defaultTheme = {
+    foreground: '#ffffff',
+    background: '#1b212f',
+    cursor: '#ffffff',
+    selection: 'rgba(255, 255, 255, 0.3)',
+    black: '#000000',
+    brightBlack: '#808080',
+    red: '#ce2f2b',
+    brightRed: '#f44a47',
+    green: '#00b976',
+    brightGreen: '#05d289',
+    yellow: '#e0d500',
+    brightYellow: '#f4f628',
+    magenta: '#bd37bc',
+    brightMagenta: '#d86cd8',
+    blue: '#1d6fca',
+    brightBlue: '#358bed',
+    cyan: '#00a8cf',
+    brightCyan: '#19b8dd',
+    white: '#e5e5e5',
+    brightWhite: '#ffffff'
+  }
+
+  const terminal = new Terminal({
+    fontSize: 14,
+    cursorBlink: true,
+    cursorStyle: 'bar',
+    theme: defaultTheme
+  });
+  const fitAddon = new FitAddon.FitAddon();
+  terminal.loadAddon(fitAddon);
+  
+  terminal.open(document.getElementById("term"))
+  fitAddon.fit()
+
+  if((new URL(document.location)).searchParams.get("id") != undefined) {
+    const ws = new WebSocket('ws://' + window.location.hostname + '/ws/' + (new URL(document.location)).searchParams.get("id"))
+    
+    ws.onopen = function (evt) {
+        terminal.writeln('\r\n Connected to Backend')
+        ws.send("READER")
+        ws.send("size-" + terminal.rows + "-" + terminal.cols)
+        
+        terminal.onData(e => {
+          ws.send(e)
+        })
+    }
+
+    ws.onclose = function (evt) {
+      terminal.writeln('\r\n Disconnected from Backend')
+      ws.close()
+    }
+
+    ws.onmessage = function (evt) {
+      terminal.write(evt.data)
+    }
+
+    ws.onerror = function (evt) {
+      console.log(evt)
+      terminal.writeln('ERROR: ' + evt.data)
+    }
+  }
+</script>
+
+</html>

@@ -1,0 +1,217 @@
+{{ template "head.html" . }}
+{{ template "nav.html" . }}
+
+<script src="/assets/chart.min.js"></script>
+<style>
+
+form {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+}
+
+form label {
+    color: white;
+}
+
+form select, form input {
+    color: black;
+    margin: 0.3rem;
+    height: 2rem;
+}
+
+pre {
+    color: white;
+}
+</style>
+
+<h2>Leaderboard</h2><br>
+<h4>Team: <i>{{ .team.Alias }}</i></h4>
+<br>
+{{ if .imageFilter }}
+<h4>
+    <button class="btn btn-lg btn-dark">
+        <a href="/team/{{ .team.Alias }}">
+            Only showing data for <span style="color: {{ .imageFilter.Color }}">{{ .imageFilter.Name }}.</span>
+        </a>
+    </button>
+</h4>
+<br>
+{{ end }}
+
+<!-- Team info -->
+<table class="table table-borderless table-dark table-striped">
+    <thead class="thead-dark">
+        <th>Play Time</th>
+        <th>Total Score</th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>{{ .team.Time }}</td>
+            <td>{{ .team.Score }}</td>
+        </tr>
+    </tbody>
+</table>
+
+{{ $team := .team }}
+
+<!-- Current image scores -->
+<br><h4>Current Image Scores</h4><br>
+<table class="table imageTable table-borderless table-dark table-striped scoreboard">
+    <thead class="thead-dark">
+        <th>Image</th>
+        <th>Play Time</th>
+        <th>Elapsed Time</th>
+        <th>Last Update</th>
+        <th>First Completion Time</th>
+        <th>Found Vulns</th>
+        <th>Penalties</th>
+        <th>Points</th>
+    </thead>
+    <tbody>
+        {{ range $score := .data }}
+        <tr>
+            <td>
+                <a href="/image/{{ $score.Image.Name }}" style="color: {{ $score.Image.Color }}">
+                {{ $score.Image.Name }}
+                </a>
+            </td>
+            <td>
+                <a href="/team/{{ $team.Alias }}/image/{{ $score.Image.Name }}">
+                {{ $score.PlayTimeStr }}
+                </a>
+            </td>
+            <td>
+                <a href="/team/{{ $team.Alias }}/image/{{ $score.Image.Name }}">
+                {{ $score.ElapsedTimeStr }}
+                </a>
+            </td>
+            <td>
+                <a href="/team/{{ $team.Alias }}/image/{{ $score.Image.Name }}">
+                {{ $score.Time.Format "2006-01-02 15:04:05" }}
+                </a>
+            </td>
+            <td>
+                <a href="/team/{{ $team.Alias }}/image/{{ $score.Image.Name }}">
+                {{ if eq ($score.CompletionTime.Format "2006-01-02 15:04:05") "0001-01-01 00:00:00"}}
+                    Image Not Completed
+                {{ else }}
+                    {{ $score.CompletionTime.Format "2006-01-02 15:04:05" }}
+                {{ end }}
+                </a>
+            </td>
+            <td>
+                <a href="/team/{{ $team.Alias }}/image/{{ $score.Image.Name }}">
+                {{ $score.Vulns.VulnsScored}} / {{ $score.Vulns.VulnsTotal}}
+                </a>
+            </td>
+            <td>
+                <a href="/team/{{ $team.Alias }}/image/{{ $score.Image.Name }}">
+                {{ $score.Penalties }}
+                </a>
+            </td>
+            <td>
+                <a href="/team/{{ $team.Alias }}/image/{{ $score.Image.Name }}">
+                {{ $score.Points }}
+                </a>
+            </td>
+        </tr>
+        {{ end }}
+    </tbody>
+</table>
+
+{{ $labels := .labels }}
+{{ $images := .images }}
+
+<!-- Graph of scores over time -->
+<br><br><h4>Scores Over Time (Play Time vs Points)</h4><br>
+<noscript>
+    <p style="color: white; text-align: center">The score graph uses Chart.js, and thus doesn't function without JavaScript.</p>
+</noscript>
+<canvas id="scoresOverTime"></canvas>
+
+<script>
+    var config = {
+        type: 'line',
+        data: {
+            labels: [{{ range $index, $label := $labels }}{{ if $index }} , {{ end }} '{{ $label }}' {{ end }}],
+            datasets: [
+            {{ range $index, $image := $images }}
+            {{ if $index }},{{ end }}
+            {
+                label: '{{ $image.Name }}',
+                {{ if $image.Color }}
+                backgroundColor: '{{ $image.Color }}',
+                borderColor: '{{ $image.Color }}',
+                {{ else }}
+                backgroundColor: 'rgb(255, 255, 255)',
+                borderColor: 'rgb(255, 255, 255)',
+                {{ end }}
+                data: [
+                {{ range $index2, $record := $image.Records }}
+                {{ if $index2 }},{{end}}
+                    {x: '{{ $record.PlayTimeStr }}', y: {{ $record.Points }} }
+                {{ end }} ],
+                fill: false,
+                tension: 0.1
+            }
+            {{ end }}
+            ]
+        }
+    };
+
+    window.onload = function() {
+        var ctx = document.getElementById('scoresOverTime').getContext('2d');
+        window.myLine = new Chart(ctx, config);
+    };
+
+</script>
+
+{{ if .user }}
+    <br><br>
+    <h2>Information 👨‍🌾 🔫</h2>
+
+    {{ range $index, $image := $images }}
+    <br>
+        {{ if $image.Records }}
+            <div class="imgheader">
+                <h4 style="display:inline-block" id="info{{ $index }}">{{ $image.Name }}</h4>
+                <a href="/shell/{{ $team.ID }}/{{ $image.Name }}"><input type="submit" value="🐚"/></a>
+            </div>
+            {{ $selected := index $image.Records $image.Index }}
+            <form action="#info{{ $index }}">
+                <label>Record:
+                    <select name="record{{ $index }}">
+                            <option value="{{ $image.Index }}" selected>{{ $selected.Time.Format "2006-01-02 15:04:05" }} (current)</option>
+                            {{ range $index1, $record := $image.Records }}
+                                {{ if not (eq $index1 $image.Index ) }}
+                                    <option value="{{ $index1 }}">{{ $record.Time.Format "2006-01-02 15:04:05" }}</option>
+                                {{ end }}
+                            {{ end }}
+                    <select>
+                </label>
+                <input type="submit" value="✅"/>
+            </form>
+            <br>
+            <table class="table table-borderless table-dark table-striped">
+                <thead class="thead-dark">
+                    <th>Vuln Text</th>
+                    <th>Points</th>
+                </thead>
+                <tbody>
+                    {{ range $vuln := $selected.Vulns.VulnItems }}
+                    <tr>
+                        <td>{{ $vuln.VulnText }}</td>
+                        <td>{{ $vuln.VulnPoints }}</td>
+                    </tr>
+                    {{ end }}
+                </tbody>
+            </table>
+            <br>
+        {{ end }}
+    {{ end }}
+{{ end }}
+<br>
+<br>
+
+{{ template "feet.html" }}
